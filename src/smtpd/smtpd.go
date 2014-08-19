@@ -20,6 +20,7 @@ type Client struct {
 }
 
 func StartSMTPServer(addr string, domain string) {
+    log.Printf("SMTP: Server listening on %s for domain %s", addr, domain)
     listener, err := net.Listen("tcp", addr);
     if err != nil {
         log.Fatalf("STMP: Cannot start server: %v", err)
