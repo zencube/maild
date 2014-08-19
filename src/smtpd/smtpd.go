@@ -9,6 +9,7 @@ import(
     "errors"
     "strconv"
     "strings"
+    "crypto/tls"
 )
 
 type Client struct {
@@ -18,8 +19,13 @@ type Client struct {
     Addr string
 }
 
-func StartSMTPServer(addr string, domain string) {
-    log.Printf("SMTP: Server listening on %s for domain %s", addr, domain)
+func StartSMTPServer(addr string, domain string, tlsConfig *tls.Config) {
+    if tlsConfig != nil {
+        log.Printf("SMTP: Server listening on %s for domain %s with SSL", addr, domain)
+    } else {
+        log.Printf("SMTP: Server listening on %s for domain %s WITHOUT SSL", addr, domain)
+    }
+
     listener, err := net.Listen("tcp", addr);
     if err != nil {
         log.Fatalf("STMP: Cannot start server: %v", err)
@@ -38,11 +44,11 @@ func StartSMTPServer(addr string, domain string) {
             Reader:     bufio.NewReader(conn), 
             Writer:     bufio.NewWriter(conn),
             Addr:       conn.RemoteAddr().String(),
-        }, domain)
+        }, domain, tlsConfig)
     }
 }
 
-func handleClient(client *Client, domain string) {
+func handleClient(client *Client, domain string, tlsConfig *tls.Config) {
     client.Writer.WriteString(fmt.Sprintf("220 %s ESMTP service ready\n", domain))
     client.Writer.Flush()
     loop:
@@ -73,9 +79,23 @@ func handleClient(client *Client, domain string) {
                 } else {
                     response = fmt.Sprintf("250-%s Hello\n", domain)
                 }
-                response = response + "250-AUTH LOGIN\n250 OK\n"
+                response = response + "250-AUTH LOGIN\n"
+                if tlsConfig != nil {
+                    response = response + "250-STARTTLS\n"
+                }
+                response = response + "250 OK\n"
                 client.Writer.WriteString(response)
                 break
+            case strings.Index(cmd, "STARTTLS") == 0:
+                tlsConn := tls.Server(client.Connection, tlsConfig)
+                client.Writer.WriteString("220 Go ahead\n")
+                client.Writer.Flush()
+                log.Printf("TLS server ready, shaking hands with our client...")
+                client.Connection = net.Conn(tlsConn)
+                client.Reader = bufio.NewReader(client.Connection)
+                client.Writer = bufio.NewWriter(client.Connection)
+                log.Printf("SMTP: Upgraded to TLS for %s", client.Addr)
+                continue
             case strings.Index(cmd, "QUIT") == 0:
                 client.Writer.WriteString("221 Good bye\n")
                 client.Writer.Flush()
