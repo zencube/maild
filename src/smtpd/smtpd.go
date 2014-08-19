@@ -80,14 +80,19 @@ func handleClient(client *Client, domain string) {
                 cert, err := tls.LoadX509KeyPair("./server.crt", "./server.key")
                 if err != nil {
                     log.Printf("SMTP: STARTTLS error: %v", err)
-                    client.Writer.WriteString("500 Cannot initiate SSL\n")
+                    client.Writer.WriteString("454 Cannot initiate TLS\n")
                     break
                 }
-                config := tls.Config{Certificates: []tls.Certificate{cert}}
-                client.Connection = tls.Server(client.Connection, &config)
-                log.Printf("SMTP: Upgraded to TLS for %s", client.Addr)
+                config := tls.Config{Certificates: []tls.Certificate{cert}, ClientAuth: tls.VerifyClientCertIfGiven, ServerName: domain}
+                tlsConn := tls.Server(client.Connection, &config)
                 client.Writer.WriteString("220 Go ahead\n")
-                break
+                client.Writer.Flush()
+                log.Printf("TLS server ready, shaking hands with our client...")
+                client.Connection = net.Conn(tlsConn)
+                client.Reader = bufio.NewReader(client.Connection)
+                client.Writer = bufio.NewWriter(client.Connection)
+                log.Printf("SMTP: Upgraded to TLS for %s", client.Addr)
+                continue
             case strings.Index(cmd, "QUIT") == 0:
                 client.Writer.WriteString("221 Good bye\n")
                 client.Writer.Flush()
