@@ -73,8 +73,20 @@ func handleClient(client *Client, domain string) {
                 } else {
                     response = fmt.Sprintf("250-%s Hello\n", domain)
                 }
-                response = response + "250-AUTH LOGIN\n250 OK\n"
+                response = response + "250-AUTH LOGIN\n250-STARTTLS\n250 OK\n"
                 client.Writer.WriteString(response)
+                break
+            case strings.Index(cmd, "STARTTLS") == 0:
+                cert, err := tls.LoadX509KeyPair("./server.crt", "./server.key")
+                if err != nil {
+                    log.Printf("SMTP: STARTTLS error: %v", err)
+                    client.Writer.WriteString("500 Cannot initiate SSL\n")
+                    break
+                }
+                config := tls.Config{Certificates: []tls.Certificate{cert}}
+                client.Connection = tls.Server(client.Connection, &config)
+                log.Printf("SMTP: Upgraded to TLS for %s", client.Addr)
+                client.Writer.WriteString("220 Go ahead\n")
                 break
             case strings.Index(cmd, "QUIT") == 0:
                 client.Writer.WriteString("221 Good bye\n")
