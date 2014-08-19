@@ -20,7 +20,14 @@ type Client struct {
 }
 
 func StartSMTPServer(addr string, domain string) {
-    listener, err := net.Listen("tcp", addr);
+    
+    cert, err := tls.LoadX509KeyPair("./server.crt", "./server.key")
+    if err != nil {
+        log.Fatalf("SMTP: TLS setup error: %v", err)
+    }
+    config := tls.Config{Certificates: []tls.Certificate{cert}}    
+    
+    listener, err := tls.Listen("tcp", addr, &config);
     if err != nil {
         log.Fatalf("STMP: Cannot start server: %v", err)
     }

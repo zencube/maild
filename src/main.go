@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-    smtpd.StartSMTPServer(":25", "zencu.be");
+    smtpd.StartSMTPServer(":465", "zencu.be");
 }
