@@ -9,7 +9,6 @@ import(
     "errors"
     "strconv"
     "strings"
-    "crypto/tls"
 )
 
 type Client struct {
